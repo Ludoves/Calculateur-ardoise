@@ -1,0 +1,251 @@
+!DOCTYPE html
+html lang=fr
+head
+meta charset=UTF-8
+meta name=viewport content=width=device-width, initial-scale=1.0
+titleCalculateur Ardoise Protitle
+style
+body { font-family Arial, sans-serif; margin 20px; }
+h1 { text-align center; }
+form { max-width 700px; margin auto; }
+label { display block; margin-top 10px; }
+select, input { width 100%; padding 8px; margin-top 5px; }
+button { margin-top 15px; padding 10px 20px; }
+#results { margin-top 25px; width 90%; marginauto; }
+table { width 100%; border-collapse collapse; }
+th, td { border 1px solid #ccc; padding 8px; text-align center; }
+style
+script src=httpscdnjs.cloudflare.comajaxlibsjspdf2.5.1jspdf.umd.min.jsscript
+head
+body
+
+h1Calculateur Ardoise Proh1
+form id=calcForm
+
+  labelTaille de l'ardoise
+    select id=taille
+      option50x25option
+      option46x30option
+      option46x25option
+      option40x22option
+      option40x20option
+      option40x25option
+      option35x25option
+      option35x22option
+      option35x20option
+      option33x23option
+      option32x22option
+      option30x22option
+      option30x20option
+      option30x18option
+      option27x18option
+      option27x16option
+      option25x18option
+      option25x15option
+      option22x16option
+    select
+  label
+
+  labelPente du toit
+    select id=pente
+      option value=1818option
+      option value=19.33319.333option
+      option value=20.520.5option
+      option value=21.66721.667option
+      option value=2424option
+      option value=26.526.5option
+      option value=2929option
+      option value=3131option
+      option value=3535option
+      option value=38.66738.667option
+      option value=4242option
+      option value=4545option
+      option value=5050option
+      option value=54.554.5option
+      option value=59.559.5option
+      option value=63.563.5option
+      option value=6868option
+      option value=71.571.5option
+      option value=7575option
+      option value=9090option
+      option value=VerticaleVerticaleoption
+    select
+  label
+
+  labelRégion
+    select id=region
+      option value=1Région 1option
+      option value=2Région 2option
+      option value=3Région 3option
+    select
+  label
+
+  labelSurface à couvrir (m²)
+    input type=number id=surface min=1 step=0.1
+  label
+
+  labelLongueur du rampant (m)
+    input type=number id=rampant min=1 step=0.1
+  label
+
+  labelType d'isolation
+    select id=isolation
+      option value=rampantRampantoption
+      option value=plafondPlafond droitoption
+    select
+  label
+
+  labelType de chatière
+    select id=chatiere
+      option value=140Vepac 140option
+      option value=70Vepac 70option
+      option value=85Ardovent 85option
+      option value=60VM Integra 60option
+      option value=145VM Integra 145option
+      option value=80VM Triangle 80option
+      option value=85bVM Demi-ronde 85option
+    select
+  label
+
+  button type=button onclick=calculer()Calculerbutton
+  button type=button onclick=exportPDF()Exporter PDFbutton
+
+form
+
+div id=resultsdiv
+
+script
+ Recouvrement minimal selon pente et région (en mm)
+ Ces valeurs sont les minima recommandés par Cupa Pizarras d’après leur tableau officiel. contentReference[oaicite3]{index=3}
+const recouvrements = {
+  18    {1125, 2140, 3150},
+  19.333{1125, 2135, 3145},
+  20.5  {1120, 2130, 3140},
+  21.667{1115, 2125, 3135},
+  24    {1110, 2115, 3125},
+  26.5  {1105, 2110, 3120},
+  29    {1100, 2105, 3115},
+  31    {195,  2100, 3110},
+  35    {190,  295,  3100},
+  38.667{180,  290,  395},
+  42    {180,  285,  390},
+  45    {175,  280,  385},
+  50    {170,  275,  380},
+  54.5  {165,  270,  375},
+  59.5  {165,  270,  370},
+  63.5  {160,  265,  370},
+  68    {160,  265,  370},
+  71.5  {160,  265,  375},
+  75    {160,  260,  365},
+  90    {160,  260,  365},
+  Verticale {160, 260, 365}
+};
+
+ Quelques ratios indicatifs (à compléter selon ton tableau Excel ou Cupa) 
+const ratioArdoises = {
+  50x25 41,
+  46x30 37,
+  46x25 42,
+  40x22 46,
+  40x20 50,
+  40x25 40,
+  35x25 47,
+  35x22 52,
+  35x20 57,
+  33x23 50,
+  32x22 52,
+  30x22 55,
+  30x20 60,
+  30x18 67,
+  27x18 69,
+  27x16 77,
+  25x18 74,
+  25x15 83,
+  22x16 91
+};
+
+ Ratio liteaux mlm² indicatifs 
+const ratioLiteaux = {
+  50x25 5.76,
+  46x30 5.90,
+  46x25 6.00,
+  40x22 6.20,
+  40x20 6.30,
+  40x25 5.90,
+  35x25 6.50,
+  35x22 6.70,
+  35x20 7.00,
+  33x23 6.80,
+  32x22 6.90,
+  30x22 7.10,
+  30x20 7.30,
+  30x18 7.80,
+  27x18 8.00,
+  27x16 8.50,
+  25x18 8.30,
+  25x15 9.00,
+  22x16 9.50
+};
+
+function calculer() {
+  const taille = document.getElementById(taille).value;
+  const pente = document.getElementById(pente).value;
+  const region = document.getElementById(region).value;
+  const surface = parseFloat(document.getElementById(surface).value);
+  const rampant = parseFloat(document.getElementById(rampant).value);
+  const isolation = document.getElementById(isolation).value;
+  const chatiere = parseFloat(document.getElementById(chatiere).value);
+
+   Recouvrement & pureau
+  const recouv = recouvrements[pente][region];
+  const hauteur = parseInt(taille.split(x)[1]);
+  const pureau = (hauteur - recouv)  2;
+
+   Ardoises
+  const ratioA = ratioArdoises[taille];
+  const totalArdoises = surface  ratioA;
+  const ardoisesCommande = Math.ceil(totalArdoises  1.05);
+
+   Liteaux
+  const ratioL = ratioLiteaux[taille];
+  const totalLiteaux = surface  ratioL;
+  const liteauxCommande = Math.ceil(totalLiteaux  1.05);
+
+   Crochets
+  const crochetsTotal = Math.ceil(surface  2);
+  const boitesCrochets = Math.ceil(crochetsTotal  500);
+
+   Chatières
+  const surfVentReq = (isolation === rampant)
+     (surface  rampant  10000  3000)
+     (surface  rampant  10000  5000);
+  const nbChatiere = Math.ceil(surfVentReq  chatiere);
+
+  document.getElementById(results).innerHTML = `
+    h2Résultatsh2
+    table
+      trthItemththQuantitéthtr
+      trtdArdoises totalestdtd${totalArdoises.toFixed(0)}tdtr
+      trtdArdoises pour commandetdtd${ardoisesCommande}tdtr
+      trtdLiteaux totaux (ml)tdtd${totalLiteaux.toFixed(2)}tdtr
+      trtdLiteaux pour commande (ml)tdtd${liteauxCommande}tdtr
+      trtdCrochets totauxtdtd${crochetsTotal}tdtr
+      trtdBoîtes de crochetstdtd${boitesCrochets}tdtr
+      trtdPureau (mm)tdtd${pureau.toFixed(2)}tdtr
+      trtdRecouvrement (mm)tdtd${recouv}tdtr
+      trtdNombre de chatièrestdtd${nbChatiere}tdtr
+    table
+  `;
+}
+
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const content = document.getElementById(results).innerText;
+  doc.text(content, 10, 10);
+  doc.save(calcul_ardoise.pdf);
+}
+script
+
+body
+html
