@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculateur Ardoise</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+h1 { text-align: center; }
+form { max-width: 600px; margin: auto; }
+label { display: block; margin-top: 10px; }
+select, input { width: 100%; padding: 5px; margin-top: 5px; }
+button { margin-top: 15px; padding: 10px 20px; }
+#results { margin-top: 20px; max-width: 600px; margin-left:auto; margin-right:auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+<h1>Calculateur Ardoise</h1>
+<form id="calcForm">
+  <label>Taille de l'ardoise
+    <select id="taille">
+      <option value="50x25">50x25</option>
+      <option value="46x30">46x30</option>
+      <option value="46x25">46x25</option>
+      <option value="40x22">40x22</option>
+      <option value="40x20">40x20</option>
+      <option value="40x25">40x25</option>
+      <option value="35x25">35x25</option>
+      <option value="35x22">35x22</option>
+      <option value="35x20">35x20</option>
+      <option value="33x23">33x23</option>
+      <option value="32x22">32x22</option>
+      <option value="30x22">30x22</option>
+      <option value="30x20">30x20</option>
+      <option value="30x18">30x18</option>
+      <option value="27x18">27x18</option>
+      <option value="27x16">27x16</option>
+      <option value="25x18">25x18</option>
+      <option value="25x15">25x15</option>
+      <option value="22x16">22x16</option>
+    </select>
+  </label>
+
+  <label>Pente du toit
+    <select id="pente">
+      <option>11.333</option>
+      <option>12.667</option>
+      <option>14</option>
+      <option>15.333</option>
+      <option>16.667</option>
+      <option>18</option>
+      <option>19.667</option>
+      <option>20.333</option>
+      <option>21.333</option>
+      <option>24</option>
+      <option>26.333</option>
+      <option>29</option>
+      <option>31</option>
+      <option>35</option>
+      <option>38.667</option>
+      <option>42</option>
+      <option>45</option>
+      <option>50</option>
+      <option>54.5</option>
+      <option>59.5</option>
+      <option>63.5</option>
+      <option>68</option>
+      <option>71.5</option>
+      <option>75</option>
+    </select>
+  </label>
+
+  <label>Région
+    <select id="region">
+      <option value="1">Région 1</option>
+      <option value="2">Région 2</option>
+      <option value="3">Région 3</option>
+    </select>
+  </label>
+
+  <label>Surface à couvrir (m²)
+    <input type="number" id="surface" min="1" step="0.1">
+  </label>
+
+  <label>Longueur du rampant (m)
+    <input type="number" id="rampant" min="1" step="0.1">
+  </label>
+
+  <label>Type d'isolation
+    <select id="isolation">
+      <option value="rampant">Rampant</option>
+      <option value="plafond">Plafond droit</option>
+    </select>
+  </label>
+
+  <label>Type de chatière
+    <select id="chatiere">
+      <option value="140">Vepac 140</option>
+      <option value="70">Vepac 70</option>
+      <option value="85">Ardovent 85</option>
+      <option value="60">VM Integra 60</option>
+      <option value="145">VM Integra 145</option>
+      <option value="80">VM Triangle 80</option>
+      <option value="85b">VM Demi-ronde 85</option>
+    </select>
+  </label>
+
+  <button type="button" onclick="calculer()">Calculer</button>
+  <button type="button" onclick="exportPDF()">Exporter PDF</button>
+</form>
+
+<div id="results"></div>
+
+<script>
+// Exemple simplifié des tables de recouvrement (à compléter selon le tableau exact)
+const recouvrements = {
+  "50x25": { "11.333": {1:153,2:153,3:153}, "12.667": {1:147,2:147,3:147}, "14": {1:142,2:142,3:142}, "35": {1:87,2:92,3:100}, "75": {1:60,2:63,3:65} },
+  "46x30": { "11.333": {1:153,2:153,3:153}, "12.667": {1:147,2:147,3:147} }
+  // compléter toutes tailles et pentes
+};
+
+// Ratio ardoises / m² simplifié
+const ratioArdoises = {
+  "50x25": 10,
+  "46x30": 9
+  // compléter selon tableau
+};
+
+// Ratio liteaux ml / m² simplifié
+const ratioLiteaux = {
+  "50x25": 5.76,
+  "46x30": 5.5
+  // compléter selon tableau
+};
+
+function calculer() {
+  const taille = document.getElementById("taille").value;
+  const pente = document.getElementById("pente").value;
+  const region = document.getElementById("region").value;
+  const surface = parseFloat(document.getElementById("surface").value);
+  const rampant = parseFloat(document.getElementById("rampant").value);
+  const isolation = document.getElementById("isolation").value;
+  const chatiere = document.getElementById("chatiere").value;
+
+  // Recouvrement et pureau
+  let recouv = recouvrements[taille][pente][region];
+  let hauteur = parseInt(taille.split("x")[1]);
+  let pureau = (hauteur - recouv) / 2;
+
+  // Ardoises
+  let ratioA = ratioArdoises[taille];
+  let totalArdoises = surface * ratioA;
+  let ardoisesCommande = Math.ceil(totalArdoises * 1.05); // perte 5%
+
+  // Liteaux
+  let ratioL = ratioLiteaux[taille];
+  let totalLiteaux = surface * ratioL;
+  let liteauxCommande = Math.ceil(totalLiteaux * 1.05); // perte 5%
+
+  // Crochets
+  let crochetsTotal = Math.ceil(surface * 2); // simplification
+  let boitesCrochets = Math.ceil(crochetsTotal / 500);
+
+  // Chatières
+  let surfaceVent = (isolation==="rampant") ? (surface*rampant*10000/3000) : (surface*rampant*10000/5000); // cm²
+  let nbChatiere = Math.ceil(surfaceVent / parseInt(chatiere));
+
+  // Affichage
+  document.getElementById("results").innerHTML = `
+    <h2>Résultats</h2>
+    <table>
+      <tr><th>Item</th><th>Quantité</th></tr>
+      <tr><td>Ardoises totales</td><td>${totalArdoises.toFixed(0)}</td></tr>
+      <tr><td>Ardoises pour commande</td><td>${ardoisesCommande}</td></tr>
+      <tr><td>Liteaux totaux (ml)</td><td>${totalLiteaux.toFixed(2)}</td></tr>
+      <tr><td>Liteaux pour commande (ml)</td><td>${liteauxCommande}</td></tr>
+      <tr><td>Crochets totaux</td><td>${crochetsTotal}</td></tr>
+      <tr><td>Boîtes de crochets</td><td>${boitesCrochets}</td></tr>
+      <tr><td>Pureau (mm)</td><td>${pureau.toFixed(2)}</td></tr>
+      <tr><td>Recouvrement (mm)</td><td>${recouv}</td></tr>
+      <tr><td>Nombre de chatières</td><td>${nbChatiere}</td></tr>
+    </table>
+  `;
+}
+
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const results = document.getElementById("results").innerText;
+  doc.text(results, 10, 10);
+  doc.save("calcul_ardoise.pdf");
+}
+</script>
+</body>
+</html>
