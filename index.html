@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Calculateur Ardoise</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<!-- Icone écran accueil -->
+<link rel="apple-touch-icon" sizes="180x180" href="icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Calculateur Ardoise">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+html, body { height:100%; margin:0; padding:0; }
+body {
+  font-family: Arial, sans-serif;
+  background-color: #1e1e1e;
+  color: #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  align-items: center;
+}
+header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  background-color: #2c2c2c;
+  width: 100%;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+}
+header img { height: 60px; margin-bottom: 10px; }
+header h1 { font-size: 1.5em; margin:0; text-align:center; }
+
+form {
+  display: flex;
+  flex-direction: column;
+  width: 95%;
+  max-width: 500px;
+  margin: 10px 0;
+  padding: 20px;
+  background-color: #2c2c2c;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.7);
+}
+label { margin-top: 15px; }
+select, input {
+  margin-top: 5px;
+  padding: 10px;
+  font-size: 1em;
+  border-radius: 6px;
+  border: none;
+  width: 100%;
+  background-color: #3a3a3a;
+  color: #f0f0f0;
+  box-sizing: border-box;
+}
+button {
+  margin-top: 20px;
+  padding: 12px;
+  font-size: 1.1em;
+  border: none;
+  border-radius: 8px;
+  background-color: #4CAF50;
+  color: #fff;
+  cursor: pointer;
+  transition: 0.3s;
+}
+button:hover { background-color: #45a049; }
+.result {
+  margin: 10px 0 20px 0;
+  padding: 20px;
+  width: 95%;
+  max-width: 500px;
+  background-color: #3a3a3a;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.7);
+  line-height: 1.6;
+}
+.separator { margin:15px 0; border-top:2px solid #4CAF50; }
+strong.sub { font-size: 1.1em; text-decoration: underline; }
+@media(max-width:500px){ header h1{ font-size:1.2em; } }
+</style>
+</head>
+<body>
+<header>
+  <img src="logo.png" alt="Logo">
+  <h1>Calculateur Ardoise</h1>
+</header>
+
+<form id="formToiture">
+  <label>Pente : <select id="pente"></select></label>
+  <label>Région : 
+    <select id="region">
+      <option value="1">Région 1</option>
+      <option value="2">Région 2</option>
+      <option value="3">Région 3</option>
+    </select>
+  </label>
+  <label>Longueur du rampant (m) : <input type="number" id="longRampant" min="0" step="0.1"></label>
+  <label>Surface de toiture (m²) : <input type="number" id="surface" min="0" step="0.1"></label>
+  <label>Type d'isolation :
+    <select id="isolation">
+      <option value="rampant">En rampant</option>
+      <option value="plafond">Plafond droit</option>
+    </select>
+  </label>
+  <label>Taille d'ardoise : <select id="tailleArdoise" disabled></select></label>
+  <label>Chatière : <select id="chatiere"></select></label>
+  <button type="button" onclick="calculer()">Calculer</button>
+  <button type="button" onclick="exportPDF()">Exporter PDF</button>
+</form>
+
+<div class="result" id="result"></div>
+
+<script>
+// ===== DONNEES EXEMPLE =====
+const recouvrements = [
+  {pente:14, region:1, longMin:0, longMax:5.5, recouvrement:142},
+  {pente:14, region:1, longMin:5.5, longMax:11, recouvrement:153},
+];
+
+const ardoises = [
+  {recouvrement:153, taille:"50x25", pureau:173.5, ratioArdoises:22.7, mlLiteaux:5.76, longCrochet:16},
+  {recouvrement:153, taille:"46x30", pureau:153.5, ratioArdoises:21.4, mlLiteaux:6.51, longCrochet:16},
+  {recouvrement:142, taille:"50x25", pureau:179, ratioArdoises:22, mlLiteaux:5.6, longCrochet:15},
+];
+
+// Conditionnement crochets selon longueur du crochet
+const crochets = [
+  {longueur:15, agrafe:400, pointe:500},
+  {longueur:16, agrafe:400, pointe:500}
+];
+
+const chatiereList = [
+  {nom:"Vepac 140", section:140},
+  {nom:"Vepac 70", section:70},
+  {nom:"Ardovent 85", section:85},
+];
+
+const pentes = [...new Set(recouvrements.map(r => r.pente))];
+const penteSelect = document.getElementById("pente");
+pentes.forEach(p => { let opt = document.createElement("option"); opt.value=p; opt.text=p+"°"; penteSelect.add(opt); });
+
+const chatiereSelect = document.getElementById("chatiere");
+chatiereList.forEach(c => { let opt = document.createElement("option"); opt.value=c.nom; opt.text=c.nom+" ("+c.section+"cm²)"; chatiereSelect.add(opt); });
+
+// ===== LOGIQUE =====
+function updateArdoises(recouvrement){
+  const tailleSelect = document.getElementById("tailleArdoise");
+  tailleSelect.innerHTML = "";
+  const options = ardoises.filter(a => a.recouvrement===recouvrement);
+  options.forEach(a => {
+    let opt = document.createElement("option");
+    opt.value=a.taille;
+    opt.text=a.taille+" (pureau: "+a.pureau+" mm)";
+    tailleSelect.add(opt);
+  });
+  tailleSelect.disabled = options.length===0;
+}
+
+let lastResultHTML = "";
+
+function calculer(){
+  const pente = parseFloat(document.getElementById("pente").value);
+  const region = parseInt(document.getElementById("region").value);
+  const longRampant = parseFloat(document.getElementById("longRampant").value);
+  const surface = parseFloat(document.getElementById("surface").value);
+  const typeIsolation = document.getElementById("isolation").value;
+  const tailleArdoise = document.getElementById("tailleArdoise").value;
+  const chatiereNom = document.getElementById("chatiere").value;
+
+  const rec = recouvrements.find(r => r.pente===pente && r.region===region && longRampant>=r.longMin && longRampant<=r.longMax);
+  if(!rec){ document.getElementById("result").innerHTML="Impossible pour cette combinaison."; return; }
+
+  const ardoise = ardoises.find(a => a.recouvrement===rec.recouvrement && a.taille===tailleArdoise);
+  if(!ardoise){ document.getElementById("result").innerHTML="Veuillez choisir une ardoise disponible."; return; }
+
+  // Taille du crochet selon ardoise choisie
+  const cro = crochets.find(c => c.longueur === ardoise.longCrochet);
+  if(!cro){ alert("Aucun crochet défini pour cette longueur !"); return; }
+
+  const nombreArdoises = Math.round(surface*ardoise.ratioArdoises);
+  const crochetsAgrafe = Math.ceil(nombreArdoises * 0.86);
+  const crochetsPointe = Math.ceil(nombreArdoises - crochetsAgrafe);
+  const longCrochet = ardoise.longCrochet;
+
+  // Commandes avec 5% de perte
+  const nombreArdoisesAvecPerte = Math.ceil(nombreArdoises * 1.05);
+  const mlLiteaux = surface * ardoise.mlLiteaux;
+  const mlLiteauxAvecPerte = Math.ceil(mlLiteaux * 1.05 * 100)/100;
+  const boiteAgrafe = Math.ceil(crochetsAgrafe / cro.agrafe);
+  const boitePointe = Math.ceil(crochetsPointe / cro.pointe);
+
+  // Chatières
+  const surfaceVent = typeIsolation==="rampant" ? surface*10000/3000 : surface*10000/5000;
+  const chatiereChoisie = chatiereList.find(c=>c.nom===chatiereNom);
+  const nombreChatiere = Math.ceil(surfaceVent/chatiereChoisie.section);
+
+  const resultHTML = `
+    <strong class="sub">Résultats :</strong><br>
+    Nombre d’ardoises : ${nombreArdoises}<br>
+    Pureau : ${ardoise.pureau} mm<br>
+    Ml de liteaux : ${mlLiteaux.toFixed(2)} m<br>
+    Longueur des crochets : ${longCrochet} cm<br>
+    Crochets agrafe : ${crochetsAgrafe}<br>
+    Crochets pointe : ${crochetsPointe}<br>
+    Surface de ventilation : ${surfaceVent.toFixed(2)} cm²
+    <div class="separator"></div>
+    <strong class="sub">Commandes (avec 5% de perte) :</strong><br>
+    Ardoises : ${nombreArdoisesAvecPerte} unités<br>
+    Ml de liteaux : ${mlLiteauxAvecPerte} m<br>
+    Crochets agrafe ${longCrochet} cm -> ${boiteAgrafe} boîte(s)<br>
+    Crochets pointe ${longCrochet} cm -> ${boitePointe} boîte(s)<br>
+    Chatières : ${nombreChatiere} unité(s) (${chatiereNom})
+  `;
+  lastResultHTML = resultHTML;
+  document.getElementById("result").innerHTML = resultHTML;
+}
+
+function majMenuArdoise(){
+  const pente = parseFloat(document.getElementById("pente").value);
+  const region = parseInt(document.getElementById("region").value);
+  const longRampant = parseFloat(document.getElementById("longRampant").value || 0);
+  const rec = recouvrements.find(r => r.pente===pente && r.region===region && longRampant>=r.longMin && longRampant<=r.longMax);
+  if(rec) updateArdoises(rec.recouvrement);
+}
+
+document.getElementById("pente").addEventListener("change", majMenuArdoise);
+document.getElementById("region").addEventListener("change", majMenuArdoise);
+document.getElementById("longRampant").addEventListener("input", majMenuArdoise);
+window.addEventListener("load", majMenuArdoise);
+
+// Export PDF
+function exportPDF(){
+  if(!lastResultHTML){ alert("Veuillez calculer avant d'exporter."); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = 15;
+  const margin = 10;
+
+  doc.setFontSize(18);
+  doc.text("Calculateur Ardoise", margin, y);
+  y += 10;
+
+  doc.setFontSize(14);
+  doc.setFillColor(76,175,80);
+  doc.rect(margin-2, y-6, 190, 10, "F");
+  doc.setTextColor(0,0,0);
+  doc.text("Résultats", margin, y);
+  y += 8;
+
+  const resultDiv = document.getElementById("result");
+  const resultLines = [];
+  resultDiv.innerText.split("\n").forEach(line=>{
+    if(line.includes("Commandes")) return;
+    resultLines.push(line);
+  });
+  doc.setFontSize(12);
+  y += 2;
+  resultLines.forEach(line=>{ doc.text(line, margin, y); y+=7; });
+
+  y += 5;
+  doc.setFontSize(14);
+  doc.setFillColor(76,175,80);
+  doc.rect(margin-2, y-6, 190, 10, "F");
+  doc.setTextColor(0,0,0);
+  doc.text("Commandes (avec 5% perte)", margin, y);
+  y += 8;
+
+  const commandLines = [];
+  resultDiv.innerText.split("\n").forEach(line=>{
+    if(line.includes("Commandes") || line.includes("Résultats")) return;
+    if(line.includes("->") || line.includes("Ardoises") || line.includes("Ml de liteaux") || line.includes("Chatières")) commandLines.push(line);
+  });
+  doc.setFontSize(12);
+  commandLines.forEach(line=>{ doc.text(line, margin, y); y+=7; });
+
+  doc.save("calcul_ardoise.pdf");
+}
+</script>
+</body>
+</html>
